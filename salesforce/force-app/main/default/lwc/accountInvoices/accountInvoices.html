@@ -1,0 +1,128 @@
+<template>
+  <lightning-card title="External Invoices (Zero-Copy)" icon-name="standard:invoice">
+
+    <!-- Refresh button in card header -->
+    <div slot="actions">
+      <lightning-button-icon
+        icon-name="utility:refresh"
+        alternative-text="Refresh invoices"
+        title="Refresh — re-queries Neon PostgreSQL live"
+        onclick={handleRefresh}>
+      </lightning-button-icon>
+    </div>
+
+    <div class="slds-p-around_medium">
+
+      <!-- ── Loading State ───────────────────────────────────── -->
+      <template lwc:if={isLoading}>
+        <div class="slds-align_absolute-center slds-p-vertical_large">
+          <lightning-spinner alternative-text="Loading..." size="medium"></lightning-spinner>
+          <p class="slds-text-body_small slds-m-top_small slds-text-color_weak">
+            Querying Neon PostgreSQL via Render OData server...
+          </p>
+        </div>
+      </template>
+
+      <!-- ── Error State ─────────────────────────────────────── -->
+      <template lwc:if={hasError}>
+        <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+          <lightning-icon
+            icon-name="utility:error"
+            size="x-small"
+            class="slds-m-right_x-small">
+          </lightning-icon>
+          <h2>{errorMessage}</h2>
+        </div>
+      </template>
+
+      <!-- ── Main Content ────────────────────────────────────── -->
+      <template lwc:if={showContent}>
+
+        <!-- Summary Stat Cards -->
+        <div class="slds-grid slds-gutters slds-m-bottom_medium">
+          <div class="slds-col slds-size_1-of-4">
+            <div class="summary-card">
+              <p class="slds-text-title_caps slds-text-color_weak">Total</p>
+              <p class="slds-text-heading_large">{totalCount}</p>
+            </div>
+          </div>
+          <div class="slds-col slds-size_1-of-4">
+            <div class="summary-card summary-card--success">
+              <p class="slds-text-title_caps slds-text-color_weak">Paid</p>
+              <p class="slds-text-heading_large">{paidCount}</p>
+            </div>
+          </div>
+          <div class="slds-col slds-size_1-of-4">
+            <div class="summary-card summary-card--warning">
+              <p class="slds-text-title_caps slds-text-color_weak">Pending</p>
+              <p class="slds-text-heading_large">{pendingCount}</p>
+            </div>
+          </div>
+          <div class="slds-col slds-size_1-of-4">
+            <div class="summary-card summary-card--error">
+              <p class="slds-text-title_caps slds-text-color_weak">Overdue</p>
+              <p class="slds-text-heading_large">{overdueCount}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="slds-grid slds-gutters slds-m-bottom_small">
+          <div class="slds-col slds-size_1-of-3">
+            <lightning-combobox
+              label="Filter by Status"
+              value={selectedStatus}
+              placeholder="All Statuses"
+              options={statusOptions}
+              onchange={handleStatusChange}>
+            </lightning-combobox>
+          </div>
+          <div class="slds-col slds-size_1-of-3 slds-align-bottom">
+            <lightning-button
+              label="Clear Filter"
+              onclick={handleClearFilter}
+              variant="neutral">
+            </lightning-button>
+          </div>
+          <div class="slds-col slds-size_1-of-3 slds-align-bottom slds-text-align_right">
+            <p class="slds-text-body_small slds-text-color_weak">
+              Showing {displayedCount} of {totalCount} invoices
+            </p>
+          </div>
+        </div>
+
+        <!-- Data Table with Infinite Scroll -->
+        <template lwc:if={hasInvoices}>
+          <lightning-datatable
+            key-field="Id"
+            data={invoices}
+            columns={columns}
+            hide-checkbox-column
+            sorted-by={sortedBy}
+            sorted-direction={sortDirection}
+            onsort={handleSort}
+            enable-infinite-loading
+            onloadmore={handleLoadMore}
+            load-more-offset={loadMoreOffset}
+            is-loading={isLoadingMore}>
+          </lightning-datatable>
+        </template>
+
+        <!-- Empty State -->
+        <template lwc:if={isEmpty}>
+          <div class="slds-align_absolute-center slds-p-vertical_large">
+            <div class="slds-illustration slds-illustration_small">
+              <p class="slds-text-body_regular slds-text-color_weak">
+                No invoices found for this account
+                <template lwc:if={selectedStatus}>
+                  &nbsp;with status: <strong>{selectedStatus}</strong>
+                </template>.
+              </p>
+            </div>
+          </div>
+        </template>
+
+      </template>
+    </div>
+  </lightning-card>
+</template>

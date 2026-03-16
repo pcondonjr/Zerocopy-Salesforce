@@ -1,0 +1,32 @@
+/* Summary stat cards — displayed above the invoice table */
+
+.summary-card {
+    background:    #f8fafc;
+    border:        1px solid #e2e8f0;
+    border-radius: 8px;
+    padding:       14px 16px;
+    text-align:    center;
+    transition:    box-shadow 0.15s ease;
+}
+
+.summary-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Paid — green */
+.summary-card--success {
+    background:   #f0fdf4;
+    border-color: #22c55e;
+}
+
+/* Pending — amber */
+.summary-card--warning {
+    background:   #fffbeb;
+    border-color: #f59e0b;
+}
+
+/* Overdue — red */
+.summary-card--error {
+    background:   #fef2f2;
+    border-color: #ef4444;
+}

@@ -1,0 +1,4 @@
+# Ignore Salesforce metadata not managed in this project
+**/profiles/**
+**/permissionsets/**
+**/settings/**

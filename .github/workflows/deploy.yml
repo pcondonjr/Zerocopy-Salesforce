@@ -1,0 +1,42 @@
+# GitHub Actions — Auto-deploy OData server to Render on push
+#
+# Setup:
+#   1. In your Render dashboard → your service → Settings → Deploy Hook → copy the URL
+#   2. In GitHub repo → Settings → Secrets → Actions → New secret
+#      Name: RENDER_DEPLOY_HOOK_URL
+#      Value: the Render deploy hook URL
+#
+# This workflow triggers a Render redeploy on every push to main.
+
+name: Deploy OData Server to Render
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'odata-server/**'   # Only trigger when odata-server files change
+
+jobs:
+  deploy:
+    name: Trigger Render Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Render Deploy Hook
+        run: |
+          curl -f -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            --max-time 30
+
+      - name: Wait for deployment
+        run: sleep 30
+
+      - name: Health check
+        run: |
+          # Replace with your actual Render URL
+          curl -f "${{ secrets.RENDER_APP_URL }}/health" \
+            --max-time 60 \
+            --retry 5 \
+            --retry-delay 10
+        env:
+          RENDER_APP_URL: ${{ secrets.RENDER_APP_URL }}

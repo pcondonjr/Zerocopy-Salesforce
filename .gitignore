@@ -1,0 +1,43 @@
+# Node
+node_modules/
+npm-debug.log*
+.npm
+
+# Environment variables — NEVER commit these
+.env
+*.env
+.env.local
+.env.production
+
+# Salesforce
+.sf/
+.sfdx/
+*.zip
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Logs
+logs/
+*.log

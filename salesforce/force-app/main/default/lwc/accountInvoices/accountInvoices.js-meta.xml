@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>60.0</apiVersion>
+    <isExposed>true</isExposed>
+    <description>
+        Zero-Copy Invoice Viewer — displays external invoices from Neon PostgreSQL
+        on the Account record page via Salesforce Connect. No data is stored in Salesforce.
+    </description>
+    <targets>
+        <target>lightning__RecordPage</target>
+        <target>lightning__AppPage</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__RecordPage">
+            <!-- recordId is auto-populated by Salesforce with the current Account ID -->
+            <property
+                name="recordId"
+                type="String"
+                role="recordId"
+                label="Record ID"/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>
