@@ -1,20 +1,12 @@
-# GitHub Actions — Auto-deploy OData server to Render on push
-#
-# Setup:
-#   1. In your Render dashboard → your service → Settings → Deploy Hook → copy the URL
-#   2. In GitHub repo → Settings → Secrets → Actions → New secret
-#      Name: RENDER_DEPLOY_HOOK_URL
-#      Value: the Render deploy hook URL
-#
-# This workflow triggers a Render redeploy on every push to main.
-
 name: Deploy OData Server to Render
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
     paths:
-      - 'odata-server/**'   # Only trigger when odata-server files change
+      - 'odata-server/**'
+      - '.github/workflows/deploy.yml'
 
 jobs:
   deploy:
@@ -22,21 +14,63 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Trigger Render Deploy Hook
-        run: |
-          curl -f -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" \
-            -H "Content-Type: application/json" \
-            --max-time 30
 
-      - name: Wait for deployment
-        run: sleep 30
+      - name: Check secrets are configured
+        id: check
+        run: |
+          if [ -z "$HOOK_URL" ]; then
+            echo "configured=false" >> $GITHUB_OUTPUT
+            echo "::warning::RENDER_DEPLOY_HOOK_URL secret is not set."
+          else
+            echo "configured=true" >> $GITHUB_OUTPUT
+          fi
+        env:
+          HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+
+      - name: Trigger Render deploy
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          echo "Triggering Render deploy..."
+          HTTP_STATUS=$(curl -s -o /tmp/render_resp.txt -w "%{http_code}" \
+            -X POST "$HOOK_URL" --max-time 30)
+          echo "Render responded with HTTP $HTTP_STATUS"
+          cat /tmp/render_resp.txt || true
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -gt 299 ]; then
+            echo "::error::Deploy hook returned HTTP $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Deploy triggered successfully."
+        env:
+          HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+
+      - name: Wait for Render to build and start
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          echo "Waiting 90s for Render to build and start..."
+          sleep 90
 
       - name: Health check
+        if: steps.check.outputs.configured == 'true'
         run: |
-          # Replace with your actual Render URL
-          curl -f "${{ secrets.RENDER_APP_URL }}/health" \
+          APP_URL="${{ secrets.RENDER_APP_URL }}"
+          if [ -z "$APP_URL" ]; then
+            echo "::warning::RENDER_APP_URL not set, skipping health check."
+            exit 0
+          fi
+          echo "Health check: $APP_URL/health"
+          curl -f "$APP_URL/health" \
             --max-time 60 \
             --retry 5 \
-            --retry-delay 10
-        env:
-          RENDER_APP_URL: ${{ secrets.RENDER_APP_URL }}
+            --retry-delay 15 \
+            --retry-connrefused \
+            --silent --show-error
+          echo "Health check passed!"
+
+      - name: Skipped notice
+        if: steps.check.outputs.configured == 'false'
+        run: |
+          echo "======================================="
+          echo "  Auto-deploy SKIPPED (not an error)"
+          echo "  Reason: RENDER_DEPLOY_HOOK_URL not set"
+          echo "  Add the secret in: Settings > Secrets > Actions"
+          echo "======================================="
