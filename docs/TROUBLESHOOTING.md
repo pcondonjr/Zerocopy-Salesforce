@@ -170,8 +170,8 @@ If you're seeing this, check that connections are being properly released (no co
 
 ### Port already in use
 ```bash
-# Find and kill the process on port 3000
-lsof -ti:3000 | xargs kill -9
+# Find and kill the process on port 4000
+lsof -ti:4000 | xargs kill -9
 node server.js
 ```
 

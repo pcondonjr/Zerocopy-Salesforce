@@ -18,7 +18,7 @@ const cors    = require('cors');
 require('dotenv').config();
 
 const app  = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
 // ── Database connection pool ──────────────────────────────────────
 // Compatible with Neon's postgres:// connection string format

@@ -99,10 +99,10 @@ node server.js
 
 Test:
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:4000/health
 # {"status":"healthy","database":"Neon PostgreSQL","totalInvoices":500000}
-curl "http://localhost:3000/Invoices?\$top=2"
-curl http://localhost:3000/'$metadata'
+curl "http://localhost:4000/Invoices?\$top=2"
+curl http://localhost:4000/'$metadata'
 ```
 
 ### 3.2 Push to GitHub

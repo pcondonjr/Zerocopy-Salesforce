@@ -373,7 +373,7 @@ CREATE TABLE invoices (
 ### `odata-server/.env`
 ```env
 DATABASE_URL=postgres://user:pass@ep-xyz.us-east-2.aws.neon.tech/neondb?sslmode=require
-PORT=3000
+PORT=4000
 ```
 
 ### `data-generator/.env`
