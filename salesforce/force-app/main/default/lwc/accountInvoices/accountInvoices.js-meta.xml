@@ -12,12 +12,9 @@
     </targets>
     <targetConfigs>
         <targetConfig targets="lightning__RecordPage">
-            <!-- recordId is auto-populated by Salesforce with the current Account ID -->
-            <property
-                name="recordId"
-                type="String"
-                role="recordId"
-                label="Record ID"/>
+            <objects>
+                <object>Account</object>
+            </objects>
         </targetConfig>
     </targetConfigs>
 </LightningComponentBundle>

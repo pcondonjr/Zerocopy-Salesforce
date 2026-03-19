@@ -71,16 +71,26 @@ public with sharing class InvoiceController {
 
             result.invoices = Database.query(q);
 
-            // Get total count for pagination (separate query)
-            String countQ = 'SELECT COUNT(Id) cnt '
-                          + 'FROM   Invoice__x '
-                          + 'WHERE  account_sf_id__c = :accountId ';
+            // Total count — use the invoice list size + whether more exist
+            // External Objects don't support COUNT() aggregate
+            // Check if there are more records beyond this page
+            Integer nextOffset = pageOffset + pageSize;
+            String peekQ = 'SELECT Id '
+                         + 'FROM   Invoice__x '
+                         + 'WHERE  account_sf_id__c = :accountId ';
             if (String.isNotBlank(statusFilter)) {
-                countQ += 'AND status__c = :statusFilter';
+                peekQ += 'AND status__c = :statusFilter ';
             }
+            peekQ += 'LIMIT 1 OFFSET :nextOffset';
 
-            List<AggregateResult> countResult = Database.query(countQ);
-            result.totalCount = (Integer) countResult[0].get('cnt');
+            List<Invoice__x> peekResult = Database.query(peekQ);
+            // If we got a full page and there's at least 1 more, report offset + pageSize + 1
+            // Otherwise, report actual count
+            if (result.invoices.size() == pageSize && !peekResult.isEmpty()) {
+                result.totalCount = nextOffset + 1;
+            } else {
+                result.totalCount = pageOffset + result.invoices.size();
+            }
 
         } catch (Exception e) {
             result.errorMessage = 'Failed to load invoices: ' + e.getMessage();
@@ -107,28 +117,38 @@ public with sharing class InvoiceController {
         }
 
         try {
-            List<AggregateResult> results = [
-                SELECT status__c          status,
-                       COUNT(Id)          cnt,
-                       SUM(amount__c)     totalAmt
-                FROM   Invoice__x
-                WHERE  account_sf_id__c = :accountId
-                GROUP  BY status__c
-            ];
+            // Query a small page of invoices to compute summary
+            // External Objects don't support aggregates and have strict row limits
+            Integer summaryLimit = 200;
+            List<Invoice__x> invoices = Database.query(
+                'SELECT status__c, amount__c '
+                + 'FROM Invoice__x '
+                + 'WHERE account_sf_id__c = :accountId '
+                + 'LIMIT :summaryLimit'
+            );
 
+            Map<String, Integer> countByStatus = new Map<String, Integer>();
+            Map<String, Decimal> amountByStatus = new Map<String, Decimal>();
             Decimal grandTotal = 0;
-            Integer grandCount = 0;
+            Integer grandCount = invoices.size();
 
-            for (AggregateResult ar : results) {
-                String  s   = (String)  ar.get('status');
-                Integer cnt = (Integer) ar.get('cnt');
-                Decimal amt = (Decimal) ar.get('totalAmt');
+            for (Invoice__x inv : invoices) {
+                String s = inv.status__c;
+                if (s == null) { s = 'Unknown'; }
 
-                summary.put(s + '_count',  cnt);
-                summary.put(s + '_amount', amt != null ? amt : 0);
+                Integer cnt = countByStatus.containsKey(s) ? countByStatus.get(s) : 0;
+                countByStatus.put(s, cnt + 1);
 
-                grandTotal += (amt  != null ? amt  : 0);
-                grandCount += (cnt  != null ? cnt  : 0);
+                Decimal amt = inv.amount__c != null ? inv.amount__c : 0;
+                Decimal total = amountByStatus.containsKey(s) ? amountByStatus.get(s) : 0;
+                amountByStatus.put(s, total + amt);
+
+                grandTotal += amt;
+            }
+
+            for (String s : countByStatus.keySet()) {
+                summary.put(s + '_count', countByStatus.get(s));
+                summary.put(s + '_amount', amountByStatus.get(s));
             }
 
             summary.put('total_count',  grandCount);
