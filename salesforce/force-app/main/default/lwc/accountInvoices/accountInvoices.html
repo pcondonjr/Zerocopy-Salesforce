@@ -66,61 +66,176 @@
           </div>
         </div>
 
-        <!-- Filter Bar -->
-        <div class="slds-grid slds-gutters slds-m-bottom_small">
-          <div class="slds-col slds-size_1-of-3">
-            <lightning-combobox
-              label="Filter by Status"
-              value={selectedStatus}
-              placeholder="All Statuses"
-              options={statusOptions}
-              onchange={handleStatusChange}>
-            </lightning-combobox>
+        <!-- ── Master-Detail Split ─────────────────────────── -->
+        <div class="slds-grid slds-gutters">
+
+          <!-- ── Left: Invoice List (Master) ─────────────── -->
+          <div class="slds-col slds-size_5-of-12">
+
+            <!-- Search & Filter -->
+            <div class="slds-m-bottom_x-small">
+              <lightning-input
+                type="search"
+                label="Search Invoices"
+                variant="label-hidden"
+                placeholder="Search invoice #, customer, amount..."
+                value={searchTerm}
+                onchange={handleSearchChange}
+                oninput={handleSearchInput}>
+              </lightning-input>
+            </div>
+            <div class="slds-grid slds-gutters_xx-small slds-m-bottom_x-small">
+              <div class="slds-col slds-size_2-of-3">
+                <lightning-combobox
+                  label="Status"
+                  variant="label-hidden"
+                  value={selectedStatus}
+                  placeholder="All Statuses"
+                  options={statusOptions}
+                  onchange={handleStatusChange}>
+                </lightning-combobox>
+              </div>
+              <div class="slds-col slds-size_1-of-3 slds-align-bottom">
+                <lightning-button
+                  label="Clear"
+                  onclick={handleClearFilter}
+                  variant="neutral"
+                  class="slds-button_stretch">
+                </lightning-button>
+              </div>
+            </div>
+
+            <!-- Invoice List -->
+            <div class="invoice-list">
+              <template lwc:if={hasInvoices}>
+                <template for:each={filteredInvoices} for:item="inv" for:index="idx">
+                  <div
+                    key={inv.invoice_no__c}
+                    class="invoice-row"
+                    data-index={idx}
+                    onclick={handleSelectInvoice}>
+                    <div class="slds-grid slds-grid_align-spread">
+                      <span class="invoice-list__number">{inv.invoice_no__c}</span>
+                      <span class="invoice-list__amount">
+                        <lightning-formatted-number
+                          value={inv.amount__c}
+                          format-style="currency"
+                          currency-code="USD"
+                          minimum-fraction-digits="0"
+                          maximum-fraction-digits="0">
+                        </lightning-formatted-number>
+                      </span>
+                    </div>
+                    <div class="slds-grid slds-grid_align-spread slds-m-top_xxx-small">
+                      <span class="invoice-list__customer">{inv.customer_name__c}</span>
+                      <lightning-badge label={inv.status__c} class={inv.badgeClass}></lightning-badge>
+                    </div>
+                  </div>
+                </template>
+              </template>
+
+              <!-- Empty State -->
+              <template lwc:if={isEmpty}>
+                <div class="slds-align_absolute-center slds-p-vertical_medium">
+                  <p class="slds-text-body_small slds-text-color_weak">
+                    No invoices found
+                    <template lwc:if={selectedStatus}>
+                      &nbsp;with status: <strong>{selectedStatus}</strong>
+                    </template>.
+                  </p>
+                </div>
+              </template>
+            </div>
+
+            <!-- Pagination -->
+            <template lwc:if={hasInvoices}>
+              <div class="slds-grid slds-grid_align-spread slds-m-top_x-small pagination-bar">
+                <lightning-button
+                  label="Previous"
+                  icon-name="utility:chevronleft"
+                  onclick={handlePreviousPage}
+                  disabled={isPreviousDisabled}
+                  variant="neutral">
+                </lightning-button>
+                <span class="slds-text-body_small slds-text-color_weak slds-align-middle">
+                  {paginationLabel}
+                </span>
+                <lightning-button
+                  label="Next"
+                  icon-name="utility:chevronright"
+                  icon-position="right"
+                  onclick={handleNextPage}
+                  disabled={isNextDisabled}
+                  variant="neutral">
+                </lightning-button>
+              </div>
+            </template>
           </div>
-          <div class="slds-col slds-size_1-of-3 slds-align-bottom">
-            <lightning-button
-              label="Clear Filter"
-              onclick={handleClearFilter}
-              variant="neutral">
-            </lightning-button>
-          </div>
-          <div class="slds-col slds-size_1-of-3 slds-align-bottom slds-text-align_right">
-            <p class="slds-text-body_small slds-text-color_weak">
-              Showing {displayedCount} of {totalCount} invoices
-            </p>
+
+          <!-- ── Right: Invoice Detail (Detail) ──────────── -->
+          <div class="slds-col slds-size_7-of-12">
+            <template lwc:if={hasSelectedInvoice}>
+              <div class="detail-panel">
+                <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                  <h3 class="slds-text-heading_small">
+                    Invoice {selectedInvoice.invoice_no__c}
+                  </h3>
+                  <lightning-badge label={selectedInvoice.status__c} class={selectedBadgeClass}></lightning-badge>
+                </div>
+
+                <div class="slds-grid slds-wrap slds-gutters_small">
+                  <div class="slds-col slds-size_1-of-2 slds-p-bottom_small">
+                    <p class="detail-label">Customer</p>
+                    <p class="detail-value">{selectedInvoice.customer_name__c}</p>
+                  </div>
+                  <div class="slds-col slds-size_1-of-2 slds-p-bottom_small">
+                    <p class="detail-label">Amount</p>
+                    <p class="detail-value detail-value--amount">
+                      <lightning-formatted-number
+                        value={selectedInvoice.amount__c}
+                        format-style="currency"
+                        currency-code="USD">
+                      </lightning-formatted-number>
+                    </p>
+                  </div>
+                  <div class="slds-col slds-size_1-of-2 slds-p-bottom_small">
+                    <p class="detail-label">Due Date</p>
+                    <p class="detail-value">
+                      <lightning-formatted-date-time
+                        value={selectedInvoice.due_date__c}
+                        year="numeric" month="long" day="2-digit">
+                      </lightning-formatted-date-time>
+                    </p>
+                  </div>
+                  <div class="slds-col slds-size_1-of-2 slds-p-bottom_small">
+                    <p class="detail-label">Created</p>
+                    <p class="detail-value">
+                      <lightning-formatted-date-time
+                        value={selectedInvoice.created_at__c}
+                        year="numeric" month="long" day="2-digit"
+                        hour="2-digit" minute="2-digit">
+                      </lightning-formatted-date-time>
+                    </p>
+                  </div>
+                  <div class="slds-col slds-size_1-of-1 slds-p-bottom_small">
+                    <p class="detail-label">Description</p>
+                    <p class="detail-value">{selectedInvoice.description__c}</p>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- Placeholder when no invoice selected -->
+            <template lwc:if={noSelectedInvoice}>
+              <div class="detail-placeholder">
+                <lightning-icon icon-name="utility:preview" size="large" class="slds-m-bottom_small"></lightning-icon>
+                <p class="slds-text-body_regular slds-text-color_weak">
+                  Select an invoice to view details
+                </p>
+              </div>
+            </template>
           </div>
         </div>
-
-        <!-- Data Table with Infinite Scroll -->
-        <template lwc:if={hasInvoices}>
-          <lightning-datatable
-            key-field="Id"
-            data={invoices}
-            columns={columns}
-            hide-checkbox-column
-            sorted-by={sortedBy}
-            sorted-direction={sortDirection}
-            onsort={handleSort}
-            enable-infinite-loading
-            onloadmore={handleLoadMore}
-            load-more-offset={loadMoreOffset}
-            is-loading={isLoadingMore}>
-          </lightning-datatable>
-        </template>
-
-        <!-- Empty State -->
-        <template lwc:if={isEmpty}>
-          <div class="slds-align_absolute-center slds-p-vertical_large">
-            <div class="slds-illustration slds-illustration_small">
-              <p class="slds-text-body_regular slds-text-color_weak">
-                No invoices found for this account
-                <template lwc:if={selectedStatus}>
-                  &nbsp;with status: <strong>{selectedStatus}</strong>
-                </template>.
-              </p>
-            </div>
-          </div>
-        </template>
 
       </template>
     </div>

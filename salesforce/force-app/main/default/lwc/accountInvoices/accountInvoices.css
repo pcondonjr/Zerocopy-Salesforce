@@ -1,10 +1,9 @@
-/* Summary stat cards — displayed above the invoice table */
-
+/* Summary stat cards */
 .summary-card {
     background:    #f8fafc;
     border:        1px solid #e2e8f0;
     border-radius: 8px;
-    padding:       14px 16px;
+    padding:       10px 12px;
     text-align:    center;
     transition:    box-shadow 0.15s ease;
 }
@@ -13,20 +12,133 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
-/* Paid — green */
 .summary-card--success {
     background:   #f0fdf4;
     border-color: #22c55e;
 }
 
-/* Pending — amber */
 .summary-card--warning {
     background:   #fffbeb;
     border-color: #f59e0b;
 }
 
-/* Overdue — red */
 .summary-card--error {
     background:   #fef2f2;
     border-color: #ef4444;
+}
+
+/* ── Invoice list (left panel) ─────────────────────────── */
+.invoice-list {
+    max-height: 420px;
+    overflow-y: auto;
+    border:        1px solid #e2e8f0;
+    border-radius: 6px;
+}
+
+.invoice-row {
+    padding:       10px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    cursor:        pointer;
+    transition:    background 0.1s ease;
+}
+
+.invoice-row:last-child {
+    border-bottom: none;
+}
+
+.invoice-row:hover {
+    background: #f1f5f9;
+}
+
+.invoice-row--selected {
+    background:  #eef2ff;
+    border-left: 3px solid #3b82f6;
+    padding-left: 9px;
+}
+
+.invoice-list__number {
+    font-weight: 600;
+    font-size:   13px;
+    color:       #1e293b;
+}
+
+.invoice-list__amount {
+    font-weight: 600;
+    font-size:   13px;
+    color:       #334155;
+}
+
+.invoice-list__customer {
+    font-size: 12px;
+    color:     #64748b;
+    overflow:       hidden;
+    text-overflow:  ellipsis;
+    white-space:    nowrap;
+    max-width:      140px;
+}
+
+/* ── Status badges ─────────────────────────────────────── */
+.badge-paid {
+    --slds-c-badge-color-background: #dcfce7;
+    --slds-c-badge-text-color: #166534;
+}
+
+.badge-pending {
+    --slds-c-badge-color-background: #fef3c7;
+    --slds-c-badge-text-color: #92400e;
+}
+
+.badge-overdue {
+    --slds-c-badge-color-background: #fee2e2;
+    --slds-c-badge-text-color: #991b1b;
+}
+
+.badge-cancelled {
+    --slds-c-badge-color-background: #f1f5f9;
+    --slds-c-badge-text-color: #475569;
+}
+
+/* ── Detail panel (right) ──────────────────────────────── */
+.detail-panel {
+    background:    #ffffff;
+    border:        1px solid #e2e8f0;
+    border-radius: 8px;
+    padding:       20px 24px;
+    min-height:    420px;
+}
+
+.detail-label {
+    font-size:     11px;
+    font-weight:   600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color:         #94a3b8;
+    margin-bottom: 2px;
+}
+
+.detail-value {
+    font-size:   14px;
+    color:       #1e293b;
+}
+
+.detail-value--amount {
+    font-size:   20px;
+    font-weight: 700;
+    color:       #0f172a;
+}
+
+.detail-placeholder {
+    display:        flex;
+    flex-direction: column;
+    align-items:    center;
+    justify-content: center;
+    min-height:     420px;
+    border:         1px dashed #d1d5db;
+    border-radius:  8px;
+    background:     #fafbfc;
+}
+
+/* ── Pagination ────────────────────────────────────────── */
+.pagination-bar {
+    align-items: center;
 }

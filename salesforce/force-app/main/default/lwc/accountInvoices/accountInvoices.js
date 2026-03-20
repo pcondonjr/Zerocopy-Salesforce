@@ -1,18 +1,9 @@
 /**
  * accountInvoices LWC Controller
  * ================================
- * Displays invoices from Neon PostgreSQL on the Account record page.
+ * Master-detail view of invoices from Neon PostgreSQL on the Account record page.
  * Uses zero-copy architecture: data is queried live via Salesforce Connect
  * → OData server on Render → Neon PostgreSQL. Nothing is stored in Salesforce.
- *
- * Features:
- *  - Parallel data loading (Promise.all) — ~50% faster than sequential calls
- *  - Summary stat cards (Total / Paid / Pending / Overdue)
- *  - Status filter with instant re-query
- *  - Client-side column sorting
- *  - Infinite scroll pagination
- *  - Refresh with toast confirmation
- *  - Graceful error and loading states
  */
 
 import { LightningElement, api, track } from 'lwc';
@@ -20,65 +11,19 @@ import getAccountInvoices from '@salesforce/apex/InvoiceController.getAccountInv
 import getStatusSummary   from '@salesforce/apex/InvoiceController.getStatusSummary';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 
-// ── Datatable column definitions ─────────────────────────────────
-const COLUMNS = [
-  {
-    label:    'Invoice #',
-    fieldName: 'invoice_no__c',
-    type:     'text',
-    sortable:  true,
-    initialWidth: 110,
-  },
-  {
-    label:    'Amount',
-    fieldName: 'amount__c',
-    type:     'currency',
-    sortable:  true,
-    typeAttributes: { currencyCode: 'USD', minimumFractionDigits: 2 },
-    cellAttributes: { alignment: 'right' },
-    initialWidth: 120,
-  },
-  {
-    label:    'Status',
-    fieldName: 'status__c',
-    type:     'text',
-    sortable:  true,
-    initialWidth: 100,
-  },
-  {
-    label:    'Due Date',
-    fieldName: 'due_date__c',
-    type:     'date-local',
-    sortable:  true,
-    typeAttributes: { year: 'numeric', month: '2-digit', day: '2-digit' },
-    initialWidth: 110,
-  },
-  {
-    label:    'Customer',
-    fieldName: 'customer_name__c',
-    type:     'text',
-    sortable:  true,
-  },
-  {
-    label:    'Description',
-    fieldName: 'description__c',
-    type:     'text',
-    wrapText:  true,
-  },
-];
+const PAGE_SIZE = 10;
 
 export default class AccountInvoices extends LightningElement {
-  /** Auto-populated by Salesforce with the current Account's 18-char ID */
   @api recordId;
 
   // ── State ───────────────────────────────────────────────────────
-  @track invoices       = [];
-  @track isLoading      = false;
-  @track isLoadingMore  = false;
-  @track errorMessage   = '';
-  @track selectedStatus = '';
-  @track sortedBy       = 'created_at__c';
-  @track sortDirection  = 'desc';
+  @track invoices        = [];
+  @track isLoading       = false;
+  @track errorMessage    = '';
+  @track selectedStatus  = '';
+  @track searchTerm      = '';
+  @track selectedInvoice = null;
+  @track currentPage     = 1;
 
   // Summary card counts
   @track totalCount   = 0;
@@ -86,12 +31,12 @@ export default class AccountInvoices extends LightningElement {
   @track pendingCount = 0;
   @track overdueCount = 0;
 
-  // ── Constants ───────────────────────────────────────────────────
-  columns        = COLUMNS;
-  pageSize       = 50;          // records per page
-  loadMoreOffset = 20;          // pixels from bottom to trigger load-more
-  currentOffset  = 0;           // current pagination offset
-  hasMoreRecords = true;        // whether more pages exist
+  // Non-reactive — used only for DOM styling, not template binding
+  _activeIndex = -1;
+
+  // Pagination
+  pageSize       = PAGE_SIZE;
+  hasMoreRecords = true;
 
   // ── Computed properties ─────────────────────────────────────────
   get statusOptions() {
@@ -104,24 +49,64 @@ export default class AccountInvoices extends LightningElement {
     ];
   }
 
-  get hasError()       { return Boolean(this.errorMessage); }
-  get hasInvoices()    { return this.invoices.length > 0; }
-  get showContent()    { return !this.isLoading && !this.hasError; }
-  get isEmpty()        { return !this.isLoading && !this.hasError && this.invoices.length === 0; }
-  get displayedCount() { return this.invoices.length; }
+  get hasError()           { return Boolean(this.errorMessage); }
+  get showContent()        { return !this.isLoading && !this.hasError; }
+  get noSelectedInvoice()  { return this.selectedInvoice === null; }
+  get hasSelectedInvoice() { return this.selectedInvoice !== null; }
+
+  // filteredInvoices does NOT reference selectedInvoice — no render cycle
+  get filteredInvoices() {
+    let list = this.invoices;
+    if (this.searchTerm) {
+      const term = this.searchTerm.toLowerCase();
+      list = list.filter(inv => {
+        const fields = [
+          inv.invoice_no__c,
+          inv.customer_name__c,
+          inv.description__c,
+          inv.status__c,
+          inv.amount__c != null ? String(inv.amount__c) : '',
+        ];
+        return fields.some(f => f && f.toLowerCase().includes(term));
+      });
+    }
+    return list.map(inv => ({
+      ...inv,
+      badgeClass: 'badge-' + (inv.status__c || 'unknown').toLowerCase(),
+    }));
+  }
+
+  get hasInvoices() { return this.filteredInvoices.length > 0; }
+  get isEmpty()     { return !this.isLoading && !this.hasError && this.filteredInvoices.length === 0; }
+
+  get totalPages() {
+    const filtered = this.searchTerm ? this.filteredInvoices.length : this.totalCount;
+    return Math.max(1, Math.ceil(filtered / this.pageSize));
+  }
+
+  get isPreviousDisabled() { return this.currentPage <= 1; }
+  get isNextDisabled()     { return this.currentPage >= this.totalPages && !this.hasMoreRecords; }
+
+  get paginationLabel() {
+    return `Page ${this.currentPage} of ${this.totalPages}`;
+  }
+
+  get selectedBadgeClass() {
+    if (!this.selectedInvoice) return '';
+    return 'badge-' + (this.selectedInvoice.status__c || 'unknown').toLowerCase();
+  }
 
   // ── Lifecycle ───────────────────────────────────────────────────
   connectedCallback() {
     this.loadInitialData();
   }
 
+  renderedCallback() {
+    this._applySelectedStyling();
+  }
+
   // ── Data loading ────────────────────────────────────────────────
 
-  /**
-   * Load summary stats + first page of invoices in parallel.
-   * Promise.all fires both Apex calls simultaneously — ~50% faster
-   * than sequential await calls.
-   */
   async loadInitialData() {
     this.isLoading    = true;
     this.errorMessage = '';
@@ -137,7 +122,6 @@ export default class AccountInvoices extends LightningElement {
         }),
       ]);
 
-      // Populate summary cards
       if (summaryResult) {
         this.totalCount   = summaryResult.total_count   || 0;
         this.paidCount    = summaryResult.Paid_count    || 0;
@@ -145,15 +129,12 @@ export default class AccountInvoices extends LightningElement {
         this.overdueCount = summaryResult.Overdue_count || 0;
       }
 
-      // Populate invoice list
       if (invoiceResult.errorMessage) {
         this.errorMessage = invoiceResult.errorMessage;
       } else {
         this.invoices       = invoiceResult.invoices || [];
-        this.currentOffset  = this.invoices.length;
-        this.hasMoreRecords = this.invoices.length < (invoiceResult.totalCount || 0);
+        this.hasMoreRecords = this.invoices.length === this.pageSize;
 
-        // Use invoice total count if summary wasn't available
         if (!summaryResult || !summaryResult.total_count) {
           this.totalCount = invoiceResult.totalCount || 0;
         }
@@ -166,35 +147,29 @@ export default class AccountInvoices extends LightningElement {
     }
   }
 
-  /**
-   * Load the next page of invoices (triggered by infinite scroll).
-   * Appends results to the existing this.invoices array.
-   */
-  async handleLoadMore() {
-    if (this.isLoadingMore || !this.hasMoreRecords) return;
-
-    this.isLoadingMore = true;
+  async loadPage(page) {
+    this.isLoading = true;
+    const offset = (page - 1) * this.pageSize;
 
     try {
       const result = await getAccountInvoices({
         accountId:    this.recordId,
         statusFilter: this.selectedStatus || null,
         pageSize:     this.pageSize,
-        pageOffset:   this.currentOffset,
+        pageOffset:   offset,
       });
 
-      if (result.invoices && result.invoices.length > 0) {
-        // Append new page to existing list
-        this.invoices      = [...this.invoices, ...result.invoices];
-        this.currentOffset = this.invoices.length;
-        this.hasMoreRecords = this.invoices.length < (this.totalCount || 0);
+      if (result.errorMessage) {
+        this.errorMessage = result.errorMessage;
       } else {
-        this.hasMoreRecords = false;
+        this.invoices       = result.invoices || [];
+        this.currentPage    = page;
+        this.hasMoreRecords = this.invoices.length === this.pageSize;
       }
     } catch (error) {
-      this._showToast('Error loading more', this._extractError(error), 'error');
+      this._showToast('Error', this._extractError(error), 'error');
     } finally {
-      this.isLoadingMore = false;
+      this.isLoading = false;
     }
   }
 
@@ -202,15 +177,60 @@ export default class AccountInvoices extends LightningElement {
 
   handleStatusChange(event) {
     this.selectedStatus = event.detail.value;
+    this.currentPage    = 1;
+    this._clearSelection();
     this._resetAndReload();
   }
 
   handleClearFilter() {
     this.selectedStatus = '';
+    this.searchTerm     = '';
+    this.currentPage    = 1;
+    this._clearSelection();
     this._resetAndReload();
   }
 
+  handleSearchInput(event) {
+    clearTimeout(this._searchTimeout);
+    const value = event.target.value;
+    this._searchTimeout = setTimeout(() => {
+      this.searchTerm  = value;
+      this.currentPage = 1;
+      this._clearSelection();
+    }, 300);
+  }
+
+  handleSearchChange(event) {
+    this.searchTerm  = event.target.value;
+    this.currentPage = 1;
+    this._clearSelection();
+  }
+
+  handleSelectInvoice(event) {
+    const idx = parseInt(event.currentTarget.dataset.index, 10);
+    const list = this.filteredInvoices;
+    if (idx >= 0 && idx < list.length) {
+      this._activeIndex = idx;
+      this.selectedInvoice = Object.assign({}, list[idx]);
+      this._applySelectedStyling();
+    }
+  }
+
+  handlePreviousPage() {
+    if (this.currentPage > 1) {
+      this._clearSelection();
+      this.loadPage(this.currentPage - 1);
+    }
+  }
+
+  handleNextPage() {
+    this._clearSelection();
+    this.loadPage(this.currentPage + 1);
+  }
+
   handleRefresh() {
+    this.currentPage = 1;
+    this._clearSelection();
     this._resetAndReload();
     this._showToast(
       'Refreshed',
@@ -219,30 +239,27 @@ export default class AccountInvoices extends LightningElement {
     );
   }
 
-  /**
-   * Client-side sort — sorts the already-loaded invoices array.
-   * For server-side sort, call _resetAndReload() with sortedBy/sortDirection.
-   */
-  handleSort(event) {
-    const { fieldName, sortDirection } = event.detail;
-    this.sortedBy      = fieldName;
-    this.sortDirection = sortDirection;
+  // ── Private helpers ──────────────────────────────────────────────
 
-    const multiplier = sortDirection === 'asc' ? 1 : -1;
-    this.invoices = [...this.invoices].sort((a, b) => {
-      const av = a[fieldName] ?? '';
-      const bv = b[fieldName] ?? '';
-      if (av > bv) return  1 * multiplier;
-      if (av < bv) return -1 * multiplier;
-      return 0;
+  _clearSelection() {
+    this._activeIndex = -1;
+    this.selectedInvoice = null;
+  }
+
+  _applySelectedStyling() {
+    const rows = this.template.querySelectorAll('.invoice-row');
+    rows.forEach(row => {
+      const rowIdx = parseInt(row.dataset.index, 10);
+      if (rowIdx === this._activeIndex) {
+        row.classList.add('invoice-row--selected');
+      } else {
+        row.classList.remove('invoice-row--selected');
+      }
     });
   }
 
-  // ── Private helpers ──────────────────────────────────────────────
-
   _resetAndReload() {
     this.invoices       = [];
-    this.currentOffset  = 0;
     this.hasMoreRecords = true;
     this.loadInitialData();
   }
